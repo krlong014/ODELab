@@ -6098,7 +6098,7 @@ Cell[BoxData[
 }, Open  ]]
 },
 WindowSize->{808, 911},
-WindowMargins->{{Automatic, 59}, {22, Automatic}},
+WindowMargins->{{Automatic, 89}, {20, Automatic}},
 FrontEndVersion->"12.1 for Mac OS X x86 (64-bit) (June 19, 2020)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"a0ed6b09-e805-4b01-a54f-3f0218b5fbe0"
