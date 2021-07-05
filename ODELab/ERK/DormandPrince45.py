@@ -3,11 +3,11 @@ import numpy as np
 
 class DormandPrince45(EmbeddedERKStepper):
 
-    def __init__(self, **kwargs):
+    def __init__(self, params):
 
         c = (0, 1/5, 3/10, 4/5, 8/9, 1, 1)
-        b1 = (35/384, 0, 500/1113, 125/192, -2187/6784, 11/84, 0)
-        b2 = (5179/57600, 0, 7571/16695, 393/640, -92097/339200, 187/2100, 1/40)
+        b = (35/384, 0, 500/1113, 125/192, -2187/6784, 11/84, 0)
+        be1 = (5179/57600, 0, 7571/16695, 393/640, -92097/339200, 187/2100, 1/40)
 
         A = (
             (0,          0,           0, 0, 0, 0, 0),
@@ -19,5 +19,6 @@ class DormandPrince45(EmbeddedERKStepper):
             (35/384,      0,          500/1113,   125/192,  -2187/6784, 11/84, 0)
             )
         p = 5
+        pLow = 4
 
-        super().__init__(A, b1, b2, c, p, kwargs)
+        super().__init__(A, b, c, p, be1, pLow, params=params)

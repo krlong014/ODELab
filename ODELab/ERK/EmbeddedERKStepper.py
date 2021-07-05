@@ -1,66 +1,77 @@
 import numpy as np
 from numpy.linalg import norm
-from enum import Enum
 from . ERKStepper import ERKStepper
 from .. Common import StepStatus
-
-
+from .. Common import ErrorControlParams
 
 class EmbeddedERKStepper(ERKStepper):
 
-    def __init__(self, A, b1, b2, c, p,
-                 max_reductions=20,
-                 tol=1.0e-8,
-                 dtMax=1.0,
-                 dtMin=1.0e-4):
-        super().__init__(A, b1, c, p)
+    def __init__(self, A, b, c, p, be1, pLow, be2=None,
+                params=ErrorControlParams()):
+        super().__init__(A, be1, c, p)
 
-        self._deltaB = np.array(b2) - np.array(b1)
+        self._params = params
 
-        self._max_reductions = max_reductions
-        self._tol = tol
-        self._dtMin = dtMin
-        self._dtMax = dtMax
+        self._deltaB1 = np.array(be1) - np.array(b)
+        if be2 != None:
+            self._deltaB2 = np.array(be2) - np.array(b)
+        else:
+            self._deltaB2 = be2
 
-    def step(self, t, u, func, dt):
+        self._pLow = pLow
 
-        n = len(u)
-        (state, tNext, uNext, K) = self.basicStep(t, u, func, dt)
+    def pLow(self):
+        return self._pLow
 
-        if state == StepStatus.EvalFailed:
-            return (state, tNext, uNext)
+    def controlledStep(self, tCur, uCur, func, dtTry):
 
-        err = np.zeros(n)
-
-        for i in range(self.S()):
-            err += dt*self._deltaB[i]*K[i,:]
-
-        return (state, tNext, uNext, err)
-
-    def controlledStep(tCur, uCur, func, dtCur):
+        params = self._params
 
         state = StepStatus.TooManyReductions
-        normU = norm(u)
-        dtNew = dtCur
+        dtNew = dtTry
+        absUCur = np.abs(uCur)
 
-        for r in range(max_reductions):
+        for r in range(params.max_reductions):
 
-            uNext, err = self.step(tCur, uCur, func, dtNew)
-            normErr = norm(err)
+            stat, tNext, uNext, K = self.basicStep(tCur, uCur, func, dtNew)
 
-            dtNew = dt*(tol*(1+normU)/normErr)**(1/(self.p()+1))
+            absUNext = np.abs(uNext)
+            maxU = np.maximum(np.abs(uCur), absUNext)
+            errGoal = params.tol_a + params.tol_r*maxU
 
-            if normErr <= tol*normU + tol:
+            relErr = self.errEstimate(K, dtNew, errGoal)
+
+            fac = (1/relErr)**(1/(self.pLow()+1))
+            fac = min(params.fac_max,
+                    max(params.fac_min,
+                        fac*params.safety))
+            dtNew = dtNew * fac
+
+            if relErr <= 1:
                 state = StepStatus.GoodStep
-
-            if np.abs(dtNew) >= dtMax:
-                dtNew = dtMax
-                state = StepStatus.MaxStepReached
-            if np.abs(dtNew) <= dtMin:
-                dtNew = dtMin
-                state = StepStatus.MinStepReached
-
-            if state != StepStatus.TooManyReductions:
                 break
 
-        return (state, uNext, dtNew)
+
+        return (state, tNext, uNext, dtNew)
+
+
+
+    def errEstimate(self, K, dt, errGoal):
+
+        err1 = np.zeros(len(errGoal))
+        if self._deltaB2 != None:
+            err2 = np.zeros(len(errGoal))
+
+        for i in range(self.S()):
+            err1 += dt*self._deltaB1[i]*K[i,:]
+            if self._deltaB2 != None:
+                err2 += dt*self._deltaB2[i]*K[i,:]
+
+
+        relErr = np.amax(np.abs(err1/errGoal))
+
+        if self._deltaB2 != None:
+            relErr2 = np.amax(np.abs(err2/errGoal))
+            relErr = relErr * relErr/np.hypot(relErr, 0.1*relErr2)
+
+        return relErr
